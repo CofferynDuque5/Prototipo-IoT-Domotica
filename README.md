@@ -151,9 +151,11 @@ Guía completa en [`docs/ARDUINO_SETUP.md`](docs/ARDUINO_SETUP.md). Resumen:
 
 ## 🔎 Estado de verificación
 
-- ✅ **Backend probado de extremo a extremo** contra PostgreSQL real:
-  auth (JWT + bcrypt), CRUD de dispositivos, eventos, telemetría del ESP,
-  seguridad por clave de dispositivo y **difusión en tiempo real por WebSocket**.
+- ✅ **Pruebas automatizadas del backend con Jest + Supertest** (27 tests, 5
+  suites): auth, dispositivos, eventos, telemetría del ESP y WebSocket en tiempo
+  real. Usan `pg-mem` (PostgreSQL en memoria), así que corren en cualquier
+  máquina: `cd backend && npm test`. Se ejecutan en CI con GitHub Actions.
+- ✅ **Backend probado también contra PostgreSQL real** de extremo a extremo.
 - La app Flutter consume estos mismos contratos JSON (verificados).
 
 ---

@@ -91,7 +91,7 @@ export async function forgotPassword(req, res) {
   const { rows } = await query('SELECT id FROM users WHERE email = $1', [
     email.toLowerCase(),
   ]);
-  if (rows.length) {
+  if (rows.length && process.env.NODE_ENV !== 'test') {
     console.log(`[auth] Solicitud de recuperación para ${email} (pendiente SMTP)`);
     // TODO: generar token de restablecimiento y enviarlo por correo (SMTP).
   }

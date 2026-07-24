@@ -110,6 +110,33 @@ si un correo existe). El **envío real del correo** requiere integrar un
 proveedor SMTP (p. ej. Nodemailer + un servicio de correo); en este prototipo la
 solicitud se registra en el log del servidor como punto de extensión.
 
+## 🧪 Pruebas automatizadas (Jest)
+
+Las pruebas usan **Jest + Supertest** y **pg-mem** (PostgreSQL en memoria), por
+lo que corren en cualquier máquina y en CI **sin necesidad de una base de datos
+real**. Cubren autenticación, dispositivos, eventos, telemetría del ESP y la
+difusión en tiempo real por WebSocket.
+
+```bash
+cd backend
+npm install
+npm test            # ejecuta todas las suites
+npm run test:watch  # modo interactivo
+```
+
+Cobertura de las suites (`tests/`):
+
+| Suite | Qué valida |
+|---|---|
+| `auth.test.js` | Registro, login, `/me`, `PATCH /me`, `forgot-password`, validaciones y 401. |
+| `devices.test.js` | Listado, cambio de estado, evento asociado, 400/404, seguridad y clave de dispositivo. |
+| `esp.test.js` | Telemetría con/sin clave, lectura del estado y detección de offline por heartbeat. |
+| `events.test.js` | Historial vacío, creación de eventos y orden (más reciente primero). |
+| `ws.test.js` | Rechazo de token inválido, instantánea inicial y difusión en tiempo real. |
+
+En CI se ejecutan automáticamente con el workflow
+`.github/workflows/backend-tests.yml`.
+
 ## 🗄️ Esquema de datos
 
 Ver `db/schema.sql`. Los timestamps se almacenan como `BIGINT` (epoch en

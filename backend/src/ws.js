@@ -9,6 +9,12 @@ import { getRecentEvents } from './controllers/eventController.js';
 
 let wss = null;
 
+// Log silencioso durante las pruebas para no ensuciar la salida ni registrar
+// mensajes después de que un test termine.
+const log = (...args) => {
+  if (process.env.NODE_ENV !== 'test') console.log(...args);
+};
+
 /**
  * Inicializa el servidor WebSocket sobre el servidor HTTP existente.
  * Los clientes se conectan a ws://host/ws?token=JWT.
@@ -28,7 +34,7 @@ export function initWebSocket(server) {
       return;
     }
 
-    console.log('[ws] Cliente conectado. Total:', wss.clients.size);
+    log('[ws] Cliente conectado. Total:', wss.clients.size);
 
     // Al conectar, envía una instantánea completa del estado actual.
     try {
@@ -40,11 +46,11 @@ export function initWebSocket(server) {
     }
 
     socket.on('close', () => {
-      console.log('[ws] Cliente desconectado. Total:', wss.clients.size);
+      log('[ws] Cliente desconectado. Total:', wss.clients.size);
     });
   });
 
-  console.log('[ws] Servidor WebSocket listo en /ws');
+  log('[ws] Servidor WebSocket listo en /ws');
 }
 
 /** Envía un mensaje tipado a un socket concreto. */
