@@ -1,31 +1,34 @@
-import 'package:firebase_auth/firebase_auth.dart';
-
-import '../core/config/app_constants.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
-import '../services/database_service.dart';
+import '../services/realtime_client.dart';
+import '../services/token_storage.dart';
 
-/// Repositorio que orquesta autenticación y perfil de usuario.
+/// Repositorio de autenticación. Coordina el servicio REST de auth, el
+/// almacenamiento del token y el ciclo de vida de la conexión en tiempo real.
 ///
-/// Combina [AuthService] (Firebase Auth) con [DatabaseService] (Realtime
-/// Database) para mantener el nodo `users/{uid}` sincronizado con la cuenta.
+/// Al iniciar sesión guarda el token y abre el WebSocket; al cerrar sesión lo
+/// limpia y cierra la conexión.
 class AuthRepository {
   AuthRepository({
     required AuthService authService,
-    required DatabaseService databaseService,
+    required TokenStorage tokenStorage,
+    required RealtimeClient realtimeClient,
   })  : _auth = authService,
-        _db = databaseService;
+        _tokens = tokenStorage,
+        _realtime = realtimeClient;
 
   final AuthService _auth;
-  final DatabaseService _db;
+  final TokenStorage _tokens;
+  final RealtimeClient _realtime;
 
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
-
-  User? get currentUser => _auth.currentUser;
+  bool get hasSession => _tokens.hasToken;
 
   Future<UserModel> signIn(String email, String password) async {
-    final User user = await _auth.signIn(email: email, password: password);
-    return _fetchOrCreateProfile(user);
+    final AuthResult result =
+        await _auth.login(email: email, password: password);
+    await _tokens.save(result.token);
+    _realtime.connect(result.token);
+    return result.user;
   }
 
   Future<UserModel> register({
@@ -33,58 +36,38 @@ class AuthRepository {
     required String email,
     required String password,
   }) async {
-    final User user = await _auth.register(
+    final AuthResult result = await _auth.register(
+      nombre: nombre,
       email: email,
       password: password,
-      nombre: nombre,
     );
+    await _tokens.save(result.token);
+    _realtime.connect(result.token);
+    return result.user;
+  }
 
-    final UserModel model = UserModel(
-      uid: user.uid,
-      nombre: nombre.trim(),
-      email: email.trim(),
-      createdAt: DateTime.now().millisecondsSinceEpoch,
-    );
-
-    await _db.set('${AppConstants.nodeUsers}/${user.uid}', model.toMap());
-    return model;
+  /// Restaura la sesión al arrancar la app validando el token guardado.
+  /// Devuelve el usuario si el token sigue siendo válido, o `null`.
+  Future<UserModel?> restoreSession() async {
+    if (!_tokens.hasToken) return null;
+    try {
+      final UserModel user = await _auth.me();
+      _realtime.connect(_tokens.token!);
+      return user;
+    } catch (_) {
+      await _tokens.clear();
+      return null;
+    }
   }
 
   Future<void> sendPasswordReset(String email) =>
-      _auth.sendPasswordReset(email);
+      _auth.forgotPassword(email);
 
-  Future<void> signOut() => _auth.signOut();
+  Future<UserModel> updateProfileName(UserModel user, String nombre) =>
+      _auth.updateProfile(nombre);
 
-  /// Recupera el perfil desde la base de datos; si no existe lo crea a partir
-  /// de la información de la cuenta de Firebase Auth.
-  Future<UserModel> _fetchOrCreateProfile(User user) async {
-    final snapshot =
-        await _db.once('${AppConstants.nodeUsers}/${user.uid}');
-
-    if (snapshot.exists && snapshot.value is Map) {
-      return UserModel.fromMap(
-        user.uid,
-        Map<String, dynamic>.from(snapshot.value as Map),
-      );
-    }
-
-    final UserModel model = UserModel(
-      uid: user.uid,
-      nombre: user.displayName ?? 'Usuario',
-      email: user.email ?? '',
-      createdAt: DateTime.now().millisecondsSinceEpoch,
-    );
-    await _db.set('${AppConstants.nodeUsers}/${user.uid}', model.toMap());
-    return model;
-  }
-
-  /// Actualiza el nombre visible del perfil.
-  Future<UserModel> updateProfileName(UserModel user, String nombre) async {
-    await _db.update(
-      '${AppConstants.nodeUsers}/${user.uid}',
-      {'nombre': nombre.trim()},
-    );
-    await _auth.currentUser?.updateDisplayName(nombre.trim());
-    return user.copyWith(nombre: nombre.trim());
+  Future<void> signOut() async {
+    await _tokens.clear();
+    _realtime.disconnect();
   }
 }

@@ -37,6 +37,10 @@ class EspStatusModel {
         freeHeap: 0,
       );
 
+  /// Alias para construir desde el JSON de la API.
+  factory EspStatusModel.fromJson(Map<String, dynamic> json) =>
+      EspStatusModel.fromMap(json);
+
   factory EspStatusModel.fromMap(Map<String, dynamic> map) {
     return EspStatusModel(
       online: map['online'] as bool? ?? false,

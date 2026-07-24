@@ -1,90 +1,54 @@
-import '../core/config/app_constants.dart';
 import '../models/device_model.dart';
-import '../models/event_log_model.dart';
-import '../services/database_service.dart';
-import 'event_repository.dart';
+import '../services/api_client.dart';
+import '../services/realtime_client.dart';
 
-/// Repositorio de dispositivos: fuente única de verdad para el nodo `devices`.
+/// Repositorio de dispositivos: combina la API REST (carga inicial y comandos)
+/// con el flujo en tiempo real del WebSocket (actualizaciones).
 ///
-/// Expone el flujo en tiempo real de dispositivos y las operaciones de control
-/// (encender/apagar), registrando además el evento correspondiente en el
-/// historial a través de [EventRepository].
+/// El backend difunde la lista completa de dispositivos (mensaje tipo
+/// `devices`) ante cualquier cambio, por lo que el repositorio simplemente
+/// reemplaza la lista local con cada emisión.
 class DeviceRepository {
   DeviceRepository({
-    required DatabaseService databaseService,
-    required EventRepository eventRepository,
-  })  : _db = databaseService,
-        _events = eventRepository;
+    required ApiClient apiClient,
+    required RealtimeClient realtimeClient,
+  })  : _api = apiClient,
+        _realtime = realtimeClient;
 
-  final DatabaseService _db;
-  final EventRepository _events;
+  final ApiClient _api;
+  final RealtimeClient _realtime;
 
-  /// Stream en tiempo real con la lista de dispositivos, ordenada por nombre.
-  Stream<List<DeviceModel>> watchDevices() {
-    return _db.onValue(AppConstants.nodeDevices).map((snapshot) {
-      if (!snapshot.exists || snapshot.value == null) {
-        return <DeviceModel>[];
-      }
-
-      final Map<dynamic, dynamic> raw =
-          snapshot.value as Map<dynamic, dynamic>;
-
-      final List<DeviceModel> devices = raw.entries.map((entry) {
-        return DeviceModel.fromMap(
-          entry.key.toString(),
-          Map<String, dynamic>.from(entry.value as Map),
-        );
-      }).toList();
-
-      devices.sort(
-        (a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()),
-      );
-      return devices;
-    });
+  /// Carga inicial de dispositivos vía REST.
+  Future<List<DeviceModel>> fetchDevices() async {
+    final dynamic data = await _api.get('/api/devices');
+    return (data as List)
+        .map((e) => DeviceModel.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
   }
 
-  /// Stream de un dispositivo concreto.
-  Stream<DeviceModel?> watchDevice(String deviceId) {
-    return _db
-        .onValue('${AppConstants.nodeDevices}/$deviceId')
-        .map((snapshot) {
-      if (!snapshot.exists || snapshot.value == null) return null;
-      return DeviceModel.fromMap(
-        deviceId,
-        Map<String, dynamic>.from(snapshot.value as Map),
-      );
-    });
+  /// Flujo en tiempo real: emite la carga inicial y luego cada actualización
+  /// recibida por WebSocket.
+  Stream<List<DeviceModel>> watchDevices() async* {
+    try {
+      yield await fetchDevices();
+    } catch (_) {
+      yield <DeviceModel>[];
+    }
+
+    yield* _realtime.messages
+        .where((m) => m['type'] == 'devices')
+        .map((m) => (m['payload'] as List)
+            .map((e) =>
+                DeviceModel.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList());
   }
 
-  /// Cambia el estado (encendido/apagado) de un dispositivo y registra el
-  /// evento. La UI se actualiza sola gracias al stream en tiempo real.
+  /// Cambia el estado de un dispositivo (encender/apagar).
   Future<void> setState(DeviceModel device, bool nuevoEstado) async {
-    final int now = DateTime.now().millisecondsSinceEpoch;
-
-    await _db.update(
-      '${AppConstants.nodeDevices}/${device.id}',
-      {
-        'estado': nuevoEstado,
-        'ultimaActualizacion': now,
-      },
-    );
-
-    await _events.log(
-      deviceId: device.id,
-      deviceName: device.nombre,
-      action: nuevoEstado ? EventAction.encendido : EventAction.apagado,
-    );
+    await _api.post('/api/devices/${device.id}/state', {'estado': nuevoEstado});
   }
 
   /// Alterna el estado actual del dispositivo.
   Future<void> toggle(DeviceModel device) =>
       setState(device, !device.estado);
-
-  /// Crea o reemplaza un dispositivo (usado para el aprovisionamiento inicial).
-  Future<void> upsert(DeviceModel device) {
-    return _db.set(
-      '${AppConstants.nodeDevices}/${device.id}',
-      device.toMap(),
-    );
-  }
 }

@@ -1,60 +1,39 @@
-import 'package:firebase_database/firebase_database.dart';
-
-import '../core/config/app_constants.dart';
 import '../models/event_log_model.dart';
-import '../services/database_service.dart';
+import '../services/api_client.dart';
+import '../services/realtime_client.dart';
 
-/// Repositorio del historial de eventos (nodo `events`).
-///
-/// Permite registrar nuevos eventos y observar el historial reciente ordenado
-/// de más nuevo a más antiguo.
+/// Repositorio del historial de eventos: carga inicial vía REST y
+/// actualizaciones en tiempo real por WebSocket (mensaje tipo `events`).
 class EventRepository {
-  EventRepository({required DatabaseService databaseService})
-      : _db = databaseService;
+  EventRepository({
+    required ApiClient apiClient,
+    required RealtimeClient realtimeClient,
+  })  : _api = apiClient,
+        _realtime = realtimeClient;
 
-  final DatabaseService _db;
+  final ApiClient _api;
+  final RealtimeClient _realtime;
 
-  /// Registra un evento con marca de tiempo del servidor lógico (cliente).
-  Future<void> log({
-    required String deviceId,
-    required String deviceName,
-    required EventAction action,
-  }) async {
-    final DatabaseReference ref = _db.push(AppConstants.nodeEvents);
-    final EventLogModel event = EventLogModel(
-      id: ref.key ?? '',
-      deviceId: deviceId,
-      deviceName: deviceName,
-      action: action,
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-    );
-    await ref.set(event.toMap());
+  Future<List<EventLogModel>> fetchEvents() async {
+    final dynamic data = await _api.get('/api/events');
+    return (data as List)
+        .map((e) =>
+            EventLogModel.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
   }
 
-  /// Observa el historial de eventos en tiempo real (más reciente primero).
-  Stream<List<EventLogModel>> watchEvents() {
-    return _db.ref(AppConstants.nodeEvents).onValue.map((event) {
-      final DataSnapshot snapshot = event.snapshot;
-      if (!snapshot.exists || snapshot.value == null) {
-        return <EventLogModel>[];
-      }
+  Stream<List<EventLogModel>> watchEvents() async* {
+    try {
+      yield await fetchEvents();
+    } catch (_) {
+      yield <EventLogModel>[];
+    }
 
-      final Map<dynamic, dynamic> raw =
-          snapshot.value as Map<dynamic, dynamic>;
-
-      final List<EventLogModel> events = raw.entries.map((entry) {
-        return EventLogModel.fromMap(
-          entry.key.toString(),
-          Map<String, dynamic>.from(entry.value as Map),
-        );
-      }).toList();
-
-      events.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-      if (events.length > AppConstants.maxEventHistory) {
-        return events.sublist(0, AppConstants.maxEventHistory);
-      }
-      return events;
-    });
+    yield* _realtime.messages
+        .where((m) => m['type'] == 'events')
+        .map((m) => (m['payload'] as List)
+            .map((e) =>
+                EventLogModel.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList());
   }
 }

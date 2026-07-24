@@ -2,8 +2,8 @@
 
 Sistema de domótica de extremo a extremo que permite **controlar cargas
 eléctricas en tiempo real** desde una aplicación móvil, usando un
-microcontrolador **NodeMCU ESP8266** como nodo físico y **Firebase Realtime
-Database** como bróker en la nube.
+microcontrolador **NodeMCU ESP8266** como nodo físico, un **backend propio**
+(Node.js + PostgreSQL) como bróker y **WebSockets** para la sincronización.
 
 > Proyecto universitario · Ingeniería de Sistemas
 > Autores: **Valeryn Duque** & **Juan Vrasmatas**
@@ -12,11 +12,12 @@ Database** como bróker en la nube.
 
 ## ✨ Características
 
-- 🔐 **Autenticación** con Firebase Authentication (registro, login, recuperar contraseña).
-- 💡 **Control de dispositivos** (luces, ventilador, puerta, tomacorriente) mediante relés.
-- ⚡ **Tiempo real bidireccional**: la app y el ESP8266 se sincronizan por WebSockets.
-- 🏘️ **Gestión por habitaciones** (Sala, Cocina, Dormitorio, …).
-- 📊 **Estado del sistema**: IP, SSID, intensidad Wi-Fi (RSSI), uptime, firmware, memoria.
+- 🔐 **Autenticación** propia con JWT + bcrypt (registro, login, recuperación).
+- 💡 **Control de dispositivos** (luces, ventilador, puerta, tomacorriente) por relés.
+- ⚡ **Tiempo real bidireccional**: la app y el ESP8266 se sincronizan por WebSocket/REST.
+- 🗄️ **Datos reales en PostgreSQL** (base de datos relacional).
+- 🏘️ **Gestión por habitaciones** (Sala, Cocina, Dormitorio…).
+- 📊 **Estado del sistema**: IP, SSID, señal Wi-Fi (RSSI), uptime, firmware, memoria.
 - 📡 **Indicador online/offline** del ESP8266 basado en *heartbeat*.
 - 🕑 **Historial de eventos** ("Luz Sala encendida a las 19:35").
 - 🧩 **Detalle técnico** de cada dispositivo (GPIO, estado, última sincronización).
@@ -25,41 +26,47 @@ Database** como bróker en la nube.
 
 ---
 
-## 🏗️ Arquitectura (Clean Architecture)
+## 🏗️ Arquitectura
 
 ```
-┌─────────────────────┐      WebSocket / SDK      ┌────────────────────┐
-│   App Flutter        │  ◀────────────────────▶  │  Firebase RTDB      │
-│  (Material 3, M-V-C)  │                           │  (bróker en nube)   │
-└─────────────────────┘                           └─────────┬──────────┘
-                                                             │ stream
-                                                             ▼
-                                                  ┌────────────────────┐
-                                                  │   NodeMCU ESP8266   │
-                                                  │   (C++ / relés)     │
-                                                  └────────────────────┘
+┌──────────────────┐   REST + WebSocket   ┌──────────────────────┐   SQL   ┌──────────────┐
+│   App Flutter     │ ◀──────────────────▶ │  Backend Node.js      │ ◀─────▶ │  PostgreSQL   │
+│  (Material 3)      │                      │  (Express + ws + JWT) │         │  (relacional) │
+└──────────────────┘                      └──────────┬───────────┘         └──────────────┘
+                                                      │ REST (x-device-key)
+                                                      ▼
+                                           ┌──────────────────────┐
+                                           │   NodeMCU ESP8266     │
+                                           │   (C++ / relés)       │
+                                           └──────────────────────┘
 ```
 
-La app se organiza por capas siguiendo **Clean Architecture** y **SOLID**:
+- La **app** envía comandos por REST y recibe cambios en tiempo real por **WebSocket**.
+- El **ESP8266** consulta y confirma estados por REST (polling) y publica su telemetría.
+- El **backend** persiste todo en **PostgreSQL** y difunde los cambios a las apps.
+
+### Estructura del proyecto
 
 ```
-lib/
-├── core/
-│   ├── config/      → constantes, tipos de dispositivo, inyección de dependencias
-│   ├── theme/       → colores y temas Material 3 (claro/oscuro)
-│   ├── routes/      → navegación declarativa con GoRouter
-│   └── utils/       → validadores, formato de fechas, señal Wi-Fi, snackbars
-├── models/          → entidades de dominio inmutables (device, user, room, event, esp)
-├── services/        → acceso de bajo nivel (Firebase Auth, RTDB, SharedPreferences)
-├── repositories/    → orquestan servicios y exponen datos al dominio
-├── controllers/     → estado de la UI (ChangeNotifier + Provider)
-├── screens/         → pantallas (splash, auth, dashboard, detalle, ajustes, …)
-├── widgets/         → componentes reutilizables (tarjetas, glass, badges, …)
-├── app.dart         → widget raíz (MaterialApp.router)
-└── main.dart        → punto de entrada + inicialización
+Prototipo-IoT-Domotica/
+├── lib/                         → App Flutter (Clean Architecture)
+│   ├── core/         (config, theme, routes, utils)
+│   ├── models/       (device, user, room, event, esp)
+│   ├── services/     (api_client, realtime_client, auth_service, token_storage)
+│   ├── repositories/ (auth, device, event, esp)
+│   ├── controllers/  (estado con Provider)
+│   ├── screens/      (splash, auth, dashboard, detalle, ajustes, …)
+│   └── widgets/      (componentes reutilizables)
+├── backend/                     → API REST + WebSocket (Node.js + PostgreSQL)
+│   ├── src/          (rutas, controladores, middleware, ws, db)
+│   ├── db/           (schema.sql, seed.sql)
+│   └── docker-compose.yml
+├── firmware/
+│   └── prototipo_iot_domotica/  → Sketch Arduino para ESP8266 (REST)
+├── docs/                        → Guías de backend y Arduino
+├── pubspec.yaml
+└── README.md
 ```
-
-**Flujo de dependencias:** `screens → controllers → repositories → services → Firebase`.
 
 ---
 
@@ -70,87 +77,57 @@ lib/
 | Frontend | Flutter (Dart), Material Design 3, Google Fonts, flutter_animate |
 | Estado | Provider (ChangeNotifier) |
 | Navegación | GoRouter |
-| Backend | Firebase Realtime Database |
-| Autenticación | Firebase Authentication |
-| Persistencia local | SharedPreferences |
-| Hardware | NodeMCU ESP8266 (C++ / Arduino) |
-| Librería firmware | Firebase Arduino Client Library (mobizt) |
+| Red (app) | http (REST) + web_socket_channel (tiempo real) |
+| Backend | Node.js, Express, ws, jsonwebtoken, bcryptjs |
+| Base de datos | PostgreSQL |
+| Hardware | NodeMCU ESP8266 (C++ / Arduino) + ArduinoJson |
 
 ---
 
-## 📋 Requisitos previos
+## 🚀 Puesta en marcha
 
-- **Flutter SDK** ≥ 3.19 (canal estable) y Dart ≥ 3.3
-- **Android Studio** o **VS Code** con los plugins de Flutter/Dart
-- Una cuenta de **Firebase** (plan Spark gratuito es suficiente)
-- **Arduino IDE** 1.8.x / 2.x con el core de **ESP8266**
-- Un **NodeMCU ESP8266** y un **módulo de relés** (opcional para la demo física)
+### 1) Backend + PostgreSQL
 
----
-
-## 🚀 Instalación y ejecución
-
-### 1) Clonar e instalar dependencias
+Guía completa en [`docs/BACKEND_SETUP.md`](docs/BACKEND_SETUP.md). Rápido con Docker:
 
 ```bash
-git clone <URL-del-repositorio>
-cd Prototipo-IoT-Domotica
+cd backend
+cp .env.example .env          # cambia JWT_SECRET y DEVICE_API_KEY
+docker compose up --build     # levanta PostgreSQL + API con esquema y seed
+```
 
-# Genera las carpetas de plataforma (android/, ios/, web/) sin tocar lib/.
-# Es seguro: no sobrescribe el código fuente existente.
+La API queda en `http://localhost:3000` (WebSocket en `/ws`).
+
+### 2) App Flutter
+
+```bash
+# Genera las carpetas de plataforma (no toca lib/):
 flutter create . --project-name prototipo_iot_domotica --platforms=android,ios,web
-
 flutter pub get
+
+# Ejecuta apuntando al backend (elige según tu caso):
+flutter run                                        # emulador Android (10.0.2.2)
+flutter run --dart-define=API_HOST=192.168.1.100   # dispositivo físico (IP LAN)
+flutter run --dart-define=API_HOST=localhost       # web / escritorio
 ```
 
-### 2) Configurar Firebase
+Regístrate con un correo y contraseña; el dashboard mostrará los 4 dispositivos
+del *seed*. Al alternarlos, el estado se guarda en **PostgreSQL** y se propaga
+en tiempo real.
 
-1. Crea un proyecto en la [consola de Firebase](https://console.firebase.google.com/).
-2. Habilita **Authentication → Sign-in method → Correo electrónico/contraseña**.
-3. Crea una **Realtime Database** (modo bloqueado).
-4. Genera la configuración de la app con **FlutterFire CLI**:
+### 3) Firmware ESP8266
 
-   ```bash
-   dart pub global activate flutterfire_cli
-   flutterfire configure
-   ```
+Guía completa en [`docs/ARDUINO_SETUP.md`](docs/ARDUINO_SETUP.md). Resumen:
 
-   Esto sobrescribe `lib/firebase_options.dart` con tus credenciales reales.
-   (Si prefieres, edita manualmente la plantilla incluida).
-
-5. Importa los datos iniciales y las reglas — ver [`database/README.md`](database/README.md):
-   - Importa `database/database_seed.json`.
-   - Publica las reglas de `database/database.rules.json`.
-
-### 3) Ejecutar la app
-
-```bash
-flutter run
-```
-
-> Regístrate con un correo y contraseña; el dashboard mostrará los 4
-> dispositivos del *seed*. Podrás encenderlos/apagarlos aunque el ESP no esté
-> conectado (aparecerá **offline** hasta que el hardware publique telemetría).
-
----
-
-## 🔌 Firmware ESP8266 (Arduino IDE)
-
-Consulta la guía detallada en [`docs/ARDUINO_SETUP.md`](docs/ARDUINO_SETUP.md).
-Resumen:
-
-1. En Arduino IDE, añade el gestor de placas ESP8266 y selecciona **NodeMCU 1.0**.
-2. Instala la librería **"Firebase Arduino Client Library for ESP8266 and ESP32"** (mobizt).
-3. Abre `firmware/prototipo_iot_domotica/prototipo_iot_domotica.ino`.
-4. Edita `Config.h` con tu SSID, contraseña, URL/API key de Firebase y la
-   cuenta de dispositivo (correo/contraseña creada en Authentication).
-5. Verifica que el campo `gpio` de cada dispositivo en la base de datos
-   coincide con `RELAY_PINS` (`GPIO5, GPIO4, GPIO14, GPIO12`).
-6. Compila y sube al ESP8266. Abre el **Monitor Serie** a `115200` baudios.
+1. Instala el core **ESP8266** y la librería **ArduinoJson** (v6.x).
+2. Abre `firmware/prototipo_iot_domotica/prototipo_iot_domotica.ino`.
+3. En `Config.h` pon tu Wi-Fi, `API_HOST` (IP LAN de la PC) y `DEVICE_API_KEY`
+   (igual a la del backend).
+4. Compila y sube. Monitor Serie a `115200`.
 
 ### Conexión de relés (ejemplo)
 
-| Relé | GPIO | Pin NodeMCU | Dispositivo sugerido |
+| Relé | GPIO | Pin NodeMCU | Dispositivo |
 |---|---|---|---|
 | 1 | GPIO5  | D1 | Luz Sala |
 | 2 | GPIO4  | D2 | Luz Cocina |
@@ -158,36 +135,26 @@ Resumen:
 | 4 | GPIO12 | D6 | Tomacorriente |
 
 > ⚠️ Muchos módulos de relé son **activos en bajo**. Ajusta `RELAY_ACTIVE_LOW`
-> en `Config.h` según tu hardware. Para manipular cargas de 110/220 V toma las
-> precauciones eléctricas adecuadas.
+> en `Config.h`. Para cargas de 110/220 V toma precauciones eléctricas.
 
 ---
 
-## 📁 Estructura del repositorio
+## 🧪 Flujo completo
 
-```
-Prototipo-IoT-Domotica/
-├── lib/                        → aplicación Flutter (Clean Architecture)
-├── firmware/
-│   └── prototipo_iot_domotica/ → sketch Arduino para ESP8266
-│       ├── prototipo_iot_domotica.ino
-│       ├── Config.h
-│       ├── Relays.h / Relays.cpp
-├── database/                   → seed + reglas + documentación del modelo
-├── docs/                       → guías de Firebase y Arduino
-├── pubspec.yaml
-└── README.md
-```
+1. El ESP8266 publica telemetría → la app muestra **online**.
+2. Pulsas "Luz Sala" en la app → `POST /api/devices/dev_luz_sala/state`.
+3. El backend actualiza PostgreSQL, registra el evento y difunde por WebSocket.
+4. El ESP8266 (polling) detecta el cambio, activa el relé y confirma.
+5. Todas las apps conectadas ven el cambio y el nuevo evento al instante.
 
 ---
 
-## 🧪 Cómo probar el flujo completo
+## 🔎 Estado de verificación
 
-1. Enciende el ESP8266 → publica telemetría en `/esp` → la app muestra **online**.
-2. Pulsa el interruptor de "Luz Sala" en la app.
-3. Firebase actualiza `devices/dev_luz_sala/estado = true`.
-4. El ESP8266 recibe el cambio por *stream*, activa el relé y confirma el estado.
-5. Se registra un evento: *"Luz Sala encendida"* en el historial.
+- ✅ **Backend probado de extremo a extremo** contra PostgreSQL real:
+  auth (JWT + bcrypt), CRUD de dispositivos, eventos, telemetría del ESP,
+  seguridad por clave de dispositivo y **difusión en tiempo real por WebSocket**.
+- La app Flutter consume estos mismos contratos JSON (verificados).
 
 ---
 

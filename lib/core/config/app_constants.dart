@@ -16,14 +16,6 @@ class AppConstants {
   static const String university = 'Ingeniería de Sistemas';
 
   // ------------------------------------------------------------------
-  // Nodos raíz de Firebase Realtime Database
-  // ------------------------------------------------------------------
-  static const String nodeDevices = 'devices';
-  static const String nodeEsp = 'esp';
-  static const String nodeEvents = 'events';
-  static const String nodeUsers = 'users';
-
-  // ------------------------------------------------------------------
   // Claves de SharedPreferences
   // ------------------------------------------------------------------
   static const String prefThemeMode = 'pref_theme_mode';

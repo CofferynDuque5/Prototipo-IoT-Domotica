@@ -1,6 +1,7 @@
 # 🔌 Configuración del firmware ESP8266 (Arduino IDE)
 
-Guía para compilar y cargar el firmware del nodo NodeMCU ESP8266.
+Guía para compilar y cargar el firmware del nodo NodeMCU ESP8266, que se
+comunica con el **backend propio** (Node.js + PostgreSQL) por su API REST.
 
 ## 1. Instalar el soporte para ESP8266
 
@@ -9,53 +10,42 @@ Guía para compilar y cargar el firmware del nodo NodeMCU ESP8266.
    ```
    http://arduino.esp8266.com/stable/package_esp8266com_index.json
    ```
-3. **Herramientas → Placa → Gestor de tarjetas** → busca **esp8266** e instala
-   "ESP8266 by ESP8266 Community".
-4. Selecciona la placa **NodeMCU 1.0 (ESP-12E Module)**.
+3. **Herramientas → Placa → Gestor de tarjetas** → instala **esp8266**.
+4. Selecciona **NodeMCU 1.0 (ESP-12E Module)**.
 
-## 2. Instalar la librería de Firebase
+## 2. Instalar la librería ArduinoJson
 
 1. **Herramientas → Gestionar librerías**.
-2. Busca e instala:
-   **"Firebase Arduino Client Library for ESP8266 and ESP32"** (autor **mobizt**).
-3. Esta librería instala también dependencias necesarias.
+2. Busca **ArduinoJson** (autor Benoit Blanchon) e instala la **v6.x**.
+
+> `ESP8266WiFi` y `ESP8266HTTPClient` ya vienen con el core del ESP8266.
 
 ## 3. Abrir el sketch
-
-Abre la carpeta:
 
 ```
 firmware/prototipo_iot_domotica/prototipo_iot_domotica.ino
 ```
 
-El IDE cargará junto al `.ino` los archivos `Config.h`, `Relays.h` y
-`Relays.cpp`.
+El IDE cargará junto al `.ino` los archivos `Config.h`, `Relays.h` y `Relays.cpp`.
 
-## 4. Configurar credenciales (`Config.h`)
-
-Edita `Config.h` y reemplaza:
+## 4. Configurar `Config.h`
 
 ```cpp
-#define WIFI_SSID        "CAMBIAR_SSID"
-#define WIFI_PASSWORD    "CAMBIAR_PASSWORD"
+#define WIFI_SSID       "CAMBIAR_SSID"
+#define WIFI_PASSWORD   "CAMBIAR_PASSWORD"
 
-#define FIREBASE_HOST    "https://TU_PROYECTO-default-rtdb.firebaseio.com"
-#define FIREBASE_API_KEY "CAMBIAR_API_KEY"
-
-#define DEVICE_EMAIL     "esp8266@tudominio.com"
-#define DEVICE_PASSWORD  "CAMBIAR_PASSWORD_DISPOSITIVO"
+#define API_HOST        "192.168.1.100"   // IP LAN de la PC con el backend
+#define API_PORT        3000
+#define DEVICE_API_KEY  "cambia_esta_clave_del_dispositivo"  // = backend
 ```
 
-- `FIREBASE_HOST`: URL de tu Realtime Database.
-- `FIREBASE_API_KEY`: **Configuración del proyecto → General → clave de API web**.
-- `DEVICE_EMAIL` / `DEVICE_PASSWORD`: la cuenta creada en Authentication para el hardware.
+- `API_HOST`: la IP de tu computadora en la red local (no `localhost`).
+- `DEVICE_API_KEY`: **debe coincidir** con `DEVICE_API_KEY` del backend (`.env`).
+- El ESP y el backend deben estar en la **misma red**.
 
-> 💡 Para no versionar credenciales, puedes mover estas macros a un archivo
-> `secrets.h` (ya ignorado por `.gitignore`) e incluirlo desde `Config.h`.
+> 💡 Puedes mover las credenciales a un `secrets.h` (ignorado por `.gitignore`).
 
 ## 5. Conexión del hardware
-
-Módulo de relés de 4 canales → NodeMCU:
 
 | Relé | GPIO | Pin NodeMCU |
 |---|---|---|
@@ -64,11 +54,8 @@ Módulo de relés de 4 canales → NodeMCU:
 | IN3 | GPIO14 | D5 |
 | IN4 | GPIO12 | D6 |
 
-- **VCC** del módulo → **VIN/5V** del NodeMCU (o fuente externa de 5 V).
-- **GND** del módulo → **GND** del NodeMCU (GND común).
-
-Si tu módulo enciende con nivel bajo, deja `RELAY_ACTIVE_LOW` en `true`
-(valor por defecto). Si enciende con nivel alto, ponlo en `false`.
+- **VCC** del módulo → **5V/VIN**; **GND** → **GND** (común con el NodeMCU).
+- Si tu módulo enciende con nivel bajo, deja `RELAY_ACTIVE_LOW = true`.
 
 ```
      NodeMCU ESP8266                 Módulo de Relés (4 canales)
@@ -84,39 +71,40 @@ Si tu módulo enciende con nivel bajo, deja `RELAY_ACTIVE_LOW` en `true`
 
 ## 6. Compilar y cargar
 
-1. Conecta el NodeMCU por USB.
-2. **Herramientas → Puerto** → selecciona el puerto correspondiente.
-3. Pulsa **Subir** (→).
-4. Abre el **Monitor Serie** a **115200 baudios**.
-
-Deberías ver:
+1. Conecta el NodeMCU por USB y selecciona el **Puerto**.
+2. Pulsa **Subir**.
+3. Abre el **Monitor Serie** a **115200 baudios**. Deberías ver:
 
 ```
 ========================================
  Prototipo IoT Domotica - ESP8266
  Firmware v1.0.0
 ========================================
-[WiFi] Conectando a MiRed
 [WiFi] Conectado. IP: 192.168.1.50
-[Firebase] Autenticando...
-[Firebase] Listo.
-[Sync] Dispositivos registrados: 4
-[Stream] Escuchando cambios en /devices
+[Relay] dev_luz_sala -> GPIO5 = ON
+[Confirm] dev_luz_sala confirmado
 [Telemetry] Publicada. RSSI=-55 dBm, heap=41000
 ```
 
-## 7. Probar
+## 7. Cómo funciona (REST polling)
 
-- En la app, alterna un dispositivo → en el Monitor Serie verás
-  `[Relay] dev_luz_sala -> GPIO5 = ON` y el relé conmutará.
-- La telemetría (`/esp`) se publica cada 10 s → la app muestra el ESP **online**.
+- Cada **1.5 s** el ESP hace `GET /api/devices/device/list` con la cabecera
+  `x-device-key`. Si el estado de un relé cambió, lo acciona y confirma con
+  `POST /api/devices/{id}/confirm`.
+- Cada **10 s** publica su telemetría con `POST /api/esp/telemetry`, lo que hace
+  que la app muestre el ESP **online** (basado en el último *heartbeat*).
+
+## 8. HTTPS (opcional)
+
+El firmware usa HTTP en texto plano, ideal para una red local. Si expones el
+backend con TLS, cambia a `WiFiClientSecure` y gestiona el certificado/fingerprint.
 
 ## Solución de problemas
 
 | Síntoma | Solución |
 |---|---|
-| No conecta a Wi-Fi | Revisa SSID/clave; usa red **2.4 GHz** (el ESP8266 no soporta 5 GHz). |
-| `token error` / no autentica | Verifica API key y la cuenta de dispositivo en Authentication. |
+| No conecta a Wi-Fi | Usa red **2.4 GHz**; revisa SSID/clave. |
+| `GET ... -> 401` | `DEVICE_API_KEY` no coincide con el backend. |
+| `GET ... -> -1` / no responde | `API_HOST`/puerto incorrectos o backend caído; verifica misma red. |
 | Los relés actúan al revés | Cambia `RELAY_ACTIVE_LOW` en `Config.h`. |
-| `stream` se desconecta | Normal ante cortes de red; reconecta solo. Revisa la señal Wi-Fi. |
-| `getJSON error` | Asegúrate de haber importado el *seed* y publicado las reglas. |
+| Error al parsear JSON | Instala **ArduinoJson v6.x**. |

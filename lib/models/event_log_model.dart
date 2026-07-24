@@ -45,6 +45,11 @@ class EventLogModel {
     required this.timestamp,
   });
 
+  /// Construye el modelo desde el JSON de la API (incluye el campo `id`).
+  factory EventLogModel.fromJson(Map<String, dynamic> json) {
+    return EventLogModel.fromMap((json['id'] as String?) ?? '', json);
+  }
+
   factory EventLogModel.fromMap(String id, Map<String, dynamic> map) {
     return EventLogModel(
       id: id,

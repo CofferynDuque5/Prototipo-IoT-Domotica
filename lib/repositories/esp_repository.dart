@@ -1,38 +1,34 @@
-import '../core/config/app_constants.dart';
 import '../models/esp_status_model.dart';
-import '../services/database_service.dart';
+import '../services/api_client.dart';
+import '../services/realtime_client.dart';
 
-/// Repositorio de telemetría del ESP8266 (nodo `esp`).
-///
-/// Expone en tiempo real el estado del microcontrolador: conectividad,
-/// dirección IP, SSID, intensidad de señal, tiempo encendido y versión de
-/// firmware.
+/// Repositorio de telemetría del ESP8266: estado inicial vía REST y
+/// actualizaciones en tiempo real por WebSocket (mensaje tipo `esp`).
 class EspRepository {
-  EspRepository({required DatabaseService databaseService})
-      : _db = databaseService;
+  EspRepository({
+    required ApiClient apiClient,
+    required RealtimeClient realtimeClient,
+  })  : _api = apiClient,
+        _realtime = realtimeClient;
 
-  final DatabaseService _db;
+  final ApiClient _api;
+  final RealtimeClient _realtime;
 
-  /// Observa el estado del ESP8266 en tiempo real.
-  Stream<EspStatusModel> watchStatus() {
-    return _db.onValue(AppConstants.nodeEsp).map((snapshot) {
-      if (!snapshot.exists || snapshot.value == null) {
-        return EspStatusModel.unknown();
-      }
-      return EspStatusModel.fromMap(
-        Map<String, dynamic>.from(snapshot.value as Map),
-      );
-    });
-  }
-
-  /// Lee el estado una única vez (por ejemplo, para un "pull to refresh").
   Future<EspStatusModel> fetchStatus() async {
-    final snapshot = await _db.once(AppConstants.nodeEsp);
-    if (!snapshot.exists || snapshot.value == null) {
+    try {
+      final dynamic data = await _api.get('/api/esp');
+      return EspStatusModel.fromJson(Map<String, dynamic>.from(data as Map));
+    } catch (_) {
       return EspStatusModel.unknown();
     }
-    return EspStatusModel.fromMap(
-      Map<String, dynamic>.from(snapshot.value as Map),
-    );
+  }
+
+  Stream<EspStatusModel> watchStatus() async* {
+    yield await fetchStatus();
+
+    yield* _realtime.messages
+        .where((m) => m['type'] == 'esp')
+        .map((m) =>
+            EspStatusModel.fromJson(Map<String, dynamic>.from(m['payload'] as Map)));
   }
 }

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
-import '../services/auth_service.dart';
+import '../services/api_client.dart';
 import '../services/preferences_service.dart';
 
 /// Estados posibles del flujo de autenticación.
@@ -33,17 +33,15 @@ class AuthController extends ChangeNotifier {
   bool get isBusy => _busy;
   String? get rememberedEmail => _prefs.getRememberedEmail();
 
-  /// Restaura la sesión existente al arrancar la app.
-  void _bootstrap() {
-    final currentUser = _repo.currentUser;
-    if (currentUser != null) {
-      _user = UserModel(
-        uid: currentUser.uid,
-        nombre: currentUser.displayName ?? 'Usuario',
-        email: currentUser.email ?? '',
-      );
-      _status = AuthStatus.authenticated;
-    } else {
+  /// Restaura la sesión existente al arrancar la app (valida el token).
+  Future<void> _bootstrap() async {
+    try {
+      final UserModel? restored = await _repo.restoreSession();
+      _user = restored;
+      _status = restored != null
+          ? AuthStatus.authenticated
+          : AuthStatus.unauthenticated;
+    } catch (_) {
       _status = AuthStatus.unauthenticated;
     }
     notifyListeners();
@@ -81,8 +79,11 @@ class AuthController extends ChangeNotifier {
     try {
       await _repo.sendPasswordReset(email);
       return true;
-    } on AuthException catch (e) {
+    } on ApiException catch (e) {
       _errorMessage = e.message;
+      return false;
+    } catch (_) {
+      _errorMessage = 'Ocurrió un error inesperado.';
       return false;
     } finally {
       _setBusy(false);
@@ -103,6 +104,9 @@ class AuthController extends ChangeNotifier {
     try {
       _user = await _repo.updateProfileName(_user!, nombre);
       return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      return false;
     } catch (_) {
       _errorMessage = 'No se pudo actualizar el perfil.';
       return false;
@@ -126,12 +130,12 @@ class AuthController extends ChangeNotifier {
       _status = AuthStatus.authenticated;
       notifyListeners();
       return true;
-    } on AuthException catch (e) {
+    } on ApiException catch (e) {
       _errorMessage = e.message;
       _status = AuthStatus.unauthenticated;
       notifyListeners();
       return false;
-    } catch (e) {
+    } catch (_) {
       _errorMessage = 'Ocurrió un error inesperado.';
       _status = AuthStatus.unauthenticated;
       notifyListeners();

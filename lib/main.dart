@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/config/service_locator.dart';
-import 'firebase_options.dart';
-import 'services/preferences_service.dart';
 
 /// Punto de entrada de la aplicación.
 ///
-/// Inicializa los bindings de Flutter, Firebase y las preferencias locales
-/// antes de montar el árbol de widgets con las dependencias inyectadas.
+/// Inicializa los bindings de Flutter y las preferencias locales, y monta el
+/// árbol de widgets con las dependencias inyectadas. La app se comunica con un
+/// backend propio (Node.js + PostgreSQL) mediante REST + WebSocket.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -20,17 +19,12 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Inicializa Firebase con la configuración generada por FlutterFire.
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // Carga las preferencias locales (tema, correo recordado).
-  final PreferencesService preferences = await PreferencesService.init();
+  // Instancia única de SharedPreferences compartida por preferencias y token.
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
 
   runApp(
     MultiProvider(
-      providers: ServiceLocator.buildProviders(preferences),
+      providers: ServiceLocator.buildProviders(prefs),
       child: const SmartHomeApp(),
     ),
   );

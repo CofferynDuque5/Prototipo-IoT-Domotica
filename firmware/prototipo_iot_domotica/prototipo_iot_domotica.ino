@@ -8,63 +8,48 @@
  *
  *  Descripción
  *  -----------
- *  Nodo físico que actúa sobre relés (cargas eléctricas) escuchando en tiempo
- *  real los cambios de estado en Firebase Realtime Database y publicando su
- *  propia telemetría (IP, SSID, RSSI, uptime, firmware, memoria libre).
+ *  Nodo físico que actúa sobre relés (cargas eléctricas) consultando el
+ *  BACKEND PROPIO (Node.js + PostgreSQL) mediante su API REST, y publicando su
+ *  telemetría (IP, SSID, RSSI, uptime, firmware, memoria libre).
  *
  *  Flujo:
  *    1) Conecta a la red Wi-Fi (con reconexión automática).
- *    2) Autentica contra Firebase con una cuenta de dispositivo.
- *    3) Sincroniza el estado inicial de /devices y configura los GPIO.
- *    4) Abre un "stream" sobre /devices para reaccionar a los cambios.
- *    5) Al cambiar un estado, dispara el relé correspondiente y confirma.
- *    6) Publica telemetría periódica en /esp.
+ *    2) Cada POLL_INTERVAL_MS consulta GET /api/devices/device/list.
+ *    3) Aplica el estado a cada relé; si cambió, confirma con POST .../confirm.
+ *    4) Cada TELEMETRY_INTERVAL_MS publica su telemetría en POST /api/esp/telemetry.
  *
  *  Librerías necesarias (Gestor de librerías de Arduino):
- *    - "Firebase Arduino Client Library for ESP8266 and ESP32" (mobizt)
- *    - ESP8266 Core (Boards Manager)
+ *    - "ArduinoJson" (autor Benoit Blanchon) — v6.x recomendado.
+ *    - ESP8266 Core (Boards Manager). Incluye ESP8266WiFi y ESP8266HTTPClient.
  * ===========================================================================
  */
 
 #include <ESP8266WiFi.h>
-#include <Firebase_ESP_Client.h>
-
-// Helpers oficiales de la librería (impresión de estado de token y RTDB).
-#include "addons/TokenHelper.h"
-#include "addons/RTDBHelper.h"
+#include <ESP8266HTTPClient.h>
+#include <ArduinoJson.h>
 
 #include "Config.h"
 #include "Relays.h"
 
 // ---------------------------------------------------------------------------
-// Objetos globales de Firebase
+// Estado interno
 // ---------------------------------------------------------------------------
-FirebaseData fbdo;        // Operaciones puntuales (get/set)
-FirebaseData stream;      // Canal de escucha (stream) sobre /devices
-FirebaseAuth auth;        // Credenciales del dispositivo
-FirebaseConfig config;    // Configuración (API key, URL, callbacks)
+unsigned long lastPoll = 0;
+unsigned long lastTelemetry = 0;
 
-// ---------------------------------------------------------------------------
-// Variables de control
-// ---------------------------------------------------------------------------
-unsigned long lastTelemetry = 0;   // Marca de la última telemetría enviada
-String pendingConfirmId = "";      // Dispositivo pendiente de confirmar estado
-bool   pendingConfirmState = false;
+// URL base del backend (http://host:puerto).
+String baseUrl;
 
 // ===========================================================================
 // Declaraciones adelantadas
 // ===========================================================================
 void connectWiFi();
 void ensureWiFi();
-void initFirebase();
-void syncDevices();
-void beginDeviceStream();
-void streamCallback(FirebaseStream data);
-void streamTimeoutCallback(bool timeout);
-void applyDeviceState(const String &deviceId, bool estado);
-void confirmDeviceState();
+bool httpGet(const String &path, String &responseBody);
+bool httpPost(const String &path, const String &body, String &responseBody);
+void pollDevices();
+void confirmDevice(const String &id, bool estado);
 void publishTelemetry();
-void registerDeviceFromJson(const String &id, FirebaseJson *json);
 
 // ===========================================================================
 // setup()
@@ -79,27 +64,34 @@ void setup() {
   Serial.println(FIRMWARE_VERSION);
   Serial.println(F("========================================"));
 
+  baseUrl = String("http://") + API_HOST + ":" + String(API_PORT);
+
   relaysInit();
   connectWiFi();
-  initFirebase();
 }
 
 // ===========================================================================
 // loop()
 // ===========================================================================
 void loop() {
-  // 1) Mantener la conexión Wi-Fi activa.
   ensureWiFi();
 
-  // 2) Confirmar un cambio de estado pendiente (escritura fuera del callback).
-  if (pendingConfirmId.length() > 0 && Firebase.ready()) {
-    confirmDeviceState();
+  if (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+    return;
   }
 
-  // 3) Publicar telemetría a intervalos regulares.
-  if (Firebase.ready() &&
-      (millis() - lastTelemetry > TELEMETRY_INTERVAL_MS)) {
-    lastTelemetry = millis();
+  const unsigned long now = millis();
+
+  // 1) Sincronizar estados de los dispositivos.
+  if (now - lastPoll >= POLL_INTERVAL_MS) {
+    lastPoll = now;
+    pollDevices();
+  }
+
+  // 2) Publicar telemetría periódica.
+  if (now - lastTelemetry >= TELEMETRY_INTERVAL_MS) {
+    lastTelemetry = now;
     publishTelemetry();
   }
 }
@@ -125,267 +117,137 @@ void connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.print(F("[WiFi] Conectado. IP: "));
     Serial.println(WiFi.localIP());
-    Serial.print(F("[WiFi] RSSI: "));
-    Serial.print(WiFi.RSSI());
-    Serial.println(F(" dBm"));
   } else {
-    Serial.println(F("[WiFi] No se pudo conectar. Reintentando en loop..."));
+    Serial.println(F("[WiFi] Sin conexión. Se reintentará en el loop."));
   }
 }
 
-// Reintenta la conexión si se cae (reconexión automática).
 void ensureWiFi() {
   static unsigned long lastAttempt = 0;
   if (WiFi.status() == WL_CONNECTED) return;
 
   if (millis() - lastAttempt > 5000) {
     lastAttempt = millis();
-    Serial.println(F("[WiFi] Conexión perdida. Reconectando..."));
+    Serial.println(F("[WiFi] Reconectando..."));
     WiFi.disconnect();
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   }
 }
 
 // ===========================================================================
-// Firebase
+// HTTP
 // ===========================================================================
-void initFirebase() {
-  config.api_key = FIREBASE_API_KEY;
-  config.database_url = FIREBASE_HOST;
+bool httpGet(const String &path, String &responseBody) {
+  WiFiClient client;
+  HTTPClient http;
+  const String url = baseUrl + path;
 
-  auth.user.email = DEVICE_EMAIL;
-  auth.user.password = DEVICE_PASSWORD;
-
-  // Callback que informa del estado del token de autenticación.
-  config.token_status_callback = tokenStatusCallback;
-
-  // Reintentos y reconexión gestionados por la librería.
-  Firebase.reconnectWiFi(true);
-  config.timeout.serverResponse = 10 * 1000;
-
-  Firebase.begin(&config, &auth);
-
-  Serial.println(F("[Firebase] Autenticando..."));
-  // Espera breve a que el token esté listo antes de la sincronización inicial.
-  unsigned long start = millis();
-  while (!Firebase.ready() && millis() - start < 10000) {
-    delay(200);
+  if (!http.begin(client, url)) {
+    Serial.println(F("[HTTP] No se pudo iniciar la conexión (GET)."));
+    return false;
   }
+  http.addHeader("x-device-key", DEVICE_API_KEY);
 
-  if (Firebase.ready()) {
-    Serial.println(F("[Firebase] Listo."));
-    syncDevices();
-    beginDeviceStream();
-    publishTelemetry();
+  const int code = http.GET();
+  const bool ok = (code == HTTP_CODE_OK);
+  if (ok) {
+    responseBody = http.getString();
   } else {
-    Serial.println(F("[Firebase] No se pudo autenticar todavía."));
+    Serial.printf("[HTTP] GET %s -> %d\n", path.c_str(), code);
   }
+  http.end();
+  return ok;
 }
 
-// Lee /devices una vez y configura los relés con el estado inicial.
-void syncDevices() {
-  Serial.println(F("[Sync] Leyendo estado inicial de dispositivos..."));
+bool httpPost(const String &path, const String &body, String &responseBody) {
+  WiFiClient client;
+  HTTPClient http;
+  const String url = baseUrl + path;
 
-  if (!Firebase.RTDB.getJSON(&fbdo, PATH_DEVICES)) {
-    Serial.print(F("[Sync] Error: "));
-    Serial.println(fbdo.errorReason());
+  if (!http.begin(client, url)) {
+    Serial.println(F("[HTTP] No se pudo iniciar la conexión (POST)."));
+    return false;
+  }
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("x-device-key", DEVICE_API_KEY);
+
+  const int code = http.POST(body);
+  const bool ok = (code >= 200 && code < 300);
+  if (ok) {
+    responseBody = http.getString();
+  } else {
+    Serial.printf("[HTTP] POST %s -> %d\n", path.c_str(), code);
+  }
+  http.end();
+  return ok;
+}
+
+// ===========================================================================
+// Sincronización de dispositivos
+// ===========================================================================
+void pollDevices() {
+  String payload;
+  if (!httpGet(PATH_DEVICE_LIST, payload)) return;
+
+  // La respuesta es un arreglo JSON de dispositivos.
+  DynamicJsonDocument doc(4096);
+  const DeserializationError err = deserializeJson(doc, payload);
+  if (err) {
+    Serial.print(F("[Poll] Error al parsear JSON: "));
+    Serial.println(err.c_str());
     return;
   }
 
-  FirebaseJson *json = fbdo.to<FirebaseJson>();
-  size_t count = json->iteratorBegin();
+  JsonArray devices = doc.as<JsonArray>();
+  for (JsonObject d : devices) {
+    const char *id = d["id"] | "";
+    const int gpio = d["gpio"] | -1;
+    const bool estado = d["estado"] | false;
 
-  String currentId = "";
-  int gpio = -1;
-  bool estado = false;
-  bool haveGpio = false;
+    if (strlen(id) == 0 || gpio < 0) continue;
 
-  for (size_t i = 0; i < count; i++) {
-    FirebaseJson::IteratorValue v = json->valueAt(i);
-
-    if (v.depth == 0 && v.type == FirebaseJson::JSON_OBJECT) {
-      // Nuevo dispositivo: registrar el anterior antes de continuar.
-      if (currentId.length() > 0 && haveGpio) {
-        relayRegisterDevice(currentId, gpio, estado);
-      }
-      currentId = v.key;
-      gpio = -1;
-      estado = false;
-      haveGpio = false;
-    } else if (v.depth == 1) {
-      if (v.key == "gpio") {
-        gpio = v.value.toInt();
-        haveGpio = true;
-      } else if (v.key == "estado") {
-        estado = (v.value == "true");
-      }
+    // Aplica el estado; si cambió, acciona el relé y confirma al backend.
+    const bool changed = relayUpsert(String(id), gpio, estado);
+    if (changed) {
+      Serial.printf("[Relay] %s -> GPIO%d = %s\n",
+                    id, gpio, estado ? "ON" : "OFF");
+      confirmDevice(String(id), estado);
     }
   }
-  // Registrar el último dispositivo iterado.
-  if (currentId.length() > 0 && haveGpio) {
-    relayRegisterDevice(currentId, gpio, estado);
-  }
-  json->iteratorEnd();
-
-  Serial.print(F("[Sync] Dispositivos registrados: "));
-  Serial.println(relayDeviceCount());
 }
 
-// Abre el canal de escucha en tiempo real sobre /devices.
-void beginDeviceStream() {
-  if (!Firebase.RTDB.beginStream(&stream, PATH_DEVICES)) {
-    Serial.print(F("[Stream] Error al iniciar: "));
-    Serial.println(stream.errorReason());
-    return;
+// Confirma al backend que el estado físico fue aplicado (marca "online").
+void confirmDevice(const String &id, bool estado) {
+  DynamicJsonDocument doc(128);
+  doc["estado"] = estado;
+  String body;
+  serializeJson(doc, body);
+
+  const String path = String("/api/devices/") + id + "/confirm";
+  String response;
+  if (httpPost(path, body, response)) {
+    Serial.printf("[Confirm] %s confirmado\n", id.c_str());
   }
-  Firebase.RTDB.setStreamCallback(&stream, streamCallback,
-                                  streamTimeoutCallback);
-  Serial.println(F("[Stream] Escuchando cambios en /devices"));
-}
-
-// ===========================================================================
-// Callbacks del stream
-// ===========================================================================
-void streamCallback(FirebaseStream data) {
-  const String path = data.dataPath();   // p. ej. "/dev_luz_sala/estado"
-  Serial.print(F("[Stream] Cambio en "));
-  Serial.println(path);
-
-  if (path == "/") {
-    // Instantánea completa del árbol: re-sincronizar todo.
-    FirebaseJson *json = data.to<FirebaseJson>();
-    size_t count = json->iteratorBegin();
-    String currentId = "";
-    int gpio = -1;
-    bool estado = false;
-    bool haveGpio = false;
-    for (size_t i = 0; i < count; i++) {
-      FirebaseJson::IteratorValue v = json->valueAt(i);
-      if (v.depth == 0 && v.type == FirebaseJson::JSON_OBJECT) {
-        if (currentId.length() > 0 && haveGpio) {
-          relayRegisterDevice(currentId, gpio, estado);
-        }
-        currentId = v.key;
-        gpio = -1; estado = false; haveGpio = false;
-      } else if (v.depth == 1) {
-        if (v.key == "gpio") { gpio = v.value.toInt(); haveGpio = true; }
-        else if (v.key == "estado") { estado = (v.value == "true"); }
-      }
-    }
-    if (currentId.length() > 0 && haveGpio) {
-      relayRegisterDevice(currentId, gpio, estado);
-    }
-    json->iteratorEnd();
-    return;
-  }
-
-  // Cambio puntual: extraer el id del dispositivo y, si aplica, el campo.
-  String trimmed = path.substring(1);          // quita la '/' inicial
-  int slash = trimmed.indexOf('/');
-  String deviceId = (slash >= 0) ? trimmed.substring(0, slash) : trimmed;
-  String field = (slash >= 0) ? trimmed.substring(slash + 1) : "";
-
-  if (field == "estado") {
-    applyDeviceState(deviceId, data.to<bool>());
-  } else if (field.length() == 0 &&
-             data.dataType() == "json") {
-    // Se reemplazó el dispositivo completo: registrar de nuevo.
-    FirebaseJson *json = data.to<FirebaseJson>();
-    registerDeviceFromJson(deviceId, json);
-  }
-}
-
-void streamTimeoutCallback(bool timeout) {
-  if (timeout) {
-    Serial.println(F("[Stream] Timeout, reconectando..."));
-  }
-  if (!stream.httpConnected()) {
-    Serial.print(F("[Stream] Error de conexión: "));
-    Serial.println(stream.errorReason());
-  }
-}
-
-// ===========================================================================
-// Actuación sobre relés
-// ===========================================================================
-void applyDeviceState(const String &deviceId, bool estado) {
-  int gpio = relaySetById(deviceId, estado);
-  if (gpio >= 0) {
-    Serial.printf("[Relay] %s -> GPIO%d = %s\n",
-                  deviceId.c_str(), gpio, estado ? "ON" : "OFF");
-    // Programar la confirmación del estado hacia la base de datos.
-    pendingConfirmId = deviceId;
-    pendingConfirmState = estado;
-  } else {
-    Serial.printf("[Relay] Dispositivo desconocido: %s\n", deviceId.c_str());
-  }
-}
-
-// Registra un dispositivo a partir de su JSON completo (gpio + estado).
-void registerDeviceFromJson(const String &id, FirebaseJson *json) {
-  FirebaseJsonData result;
-  int gpio = -1;
-  bool estado = false;
-
-  if (json->get(result, "gpio")) gpio = result.to<int>();
-  if (json->get(result, "estado")) estado = result.to<bool>();
-
-  if (gpio >= 0) {
-    relayRegisterDevice(id, gpio, estado);
-    Serial.printf("[Relay] Registrado %s en GPIO%d\n", id.c_str(), gpio);
-  }
-}
-
-// Confirma el estado aplicado escribiendo de vuelta en la base de datos
-// (campos "online" y "ultimaActualizacion" con marca de tiempo del servidor).
-void confirmDeviceState() {
-  const String basePath = String(PATH_DEVICES) + "/" + pendingConfirmId;
-
-  FirebaseJson update;
-  update.set("online", true);
-  update.set("estado", pendingConfirmState);
-  update.set("ultimaActualizacion/.sv", "timestamp");
-
-  if (Firebase.RTDB.updateNode(&fbdo, basePath.c_str(), &update)) {
-    Serial.printf("[Confirm] Estado confirmado para %s\n",
-                  pendingConfirmId.c_str());
-  } else {
-    Serial.print(F("[Confirm] Error: "));
-    Serial.println(fbdo.errorReason());
-  }
-
-  pendingConfirmId = "";
 }
 
 // ===========================================================================
 // Telemetría
 // ===========================================================================
 void publishTelemetry() {
-  FirebaseJson telemetry;
-  telemetry.set("online", true);
-  telemetry.set("ip", WiFi.localIP().toString());
-  telemetry.set("ssid", WiFi.SSID());
-  telemetry.set("rssi", (int)WiFi.RSSI());
-  telemetry.set("uptime", (int)(millis() / 1000));
-  telemetry.set("firmware", FIRMWARE_VERSION);
-  telemetry.set("freeHeap", (int)ESP.getFreeHeap());
-  // Marca de tiempo del servidor (epoch en milisegundos).
-  telemetry.set("lastSeen/.sv", "timestamp");
+  DynamicJsonDocument doc(512);
+  doc["ip"] = WiFi.localIP().toString();
+  doc["ssid"] = WiFi.SSID();
+  doc["rssi"] = WiFi.RSSI();
+  doc["uptime"] = (unsigned long)(millis() / 1000);
+  doc["firmware"] = FIRMWARE_VERSION;
+  doc["freeHeap"] = ESP.getFreeHeap();
 
-  if (Firebase.RTDB.updateNode(&fbdo, PATH_ESP, &telemetry)) {
+  String body;
+  serializeJson(doc, body);
+
+  String response;
+  if (httpPost(PATH_ESP_TELEMETRY, body, response)) {
     Serial.printf("[Telemetry] Publicada. RSSI=%d dBm, heap=%u\n",
                   WiFi.RSSI(), ESP.getFreeHeap());
-  } else {
-    Serial.print(F("[Telemetry] Error: "));
-    Serial.println(fbdo.errorReason());
-  }
-
-  // Marca cada dispositivo conocido como "online".
-  for (int i = 0; i < relayDeviceCount(); i++) {
-    DeviceMapping d = relayDeviceAt(i);
-    if (d.id.length() > 0) {
-      String p = String(PATH_DEVICES) + "/" + d.id + "/online";
-      Firebase.RTDB.setBool(&fbdo, p.c_str(), true);
-    }
   }
 }

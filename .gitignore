@@ -67,10 +67,10 @@ unlinked_spec.ds
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
 
-# Firebase — NO subir credenciales reales
-google-services.json
-GoogleService-Info.plist
-.firebaserc
+# Backend (Node.js) — NO subir dependencias ni secretos
+backend/node_modules/
+backend/.env
+node_modules/
 
 # Arduino
 firmware/**/build/

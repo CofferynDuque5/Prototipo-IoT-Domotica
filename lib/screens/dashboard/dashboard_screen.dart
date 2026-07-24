@@ -108,8 +108,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         icon: Icons.devices_other_rounded,
         title: 'Sin dispositivos',
         message:
-            'Aún no hay dispositivos registrados en Firebase.\n'
-            'Enciende el ESP8266 o crea los nodos en la base de datos.',
+            'Aún no hay dispositivos registrados en el sistema.\n'
+            'Ejecuta el seed del backend o enciende el ESP8266.',
       );
     }
 

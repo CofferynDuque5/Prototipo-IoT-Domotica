@@ -26,7 +26,12 @@ class DeviceModel {
     required this.ultimaActualizacion,
   });
 
-  /// Construye el modelo a partir del mapa devuelto por Firebase.
+  /// Construye el modelo desde el JSON de la API (incluye el campo `id`).
+  factory DeviceModel.fromJson(Map<String, dynamic> json) {
+    return DeviceModel.fromMap((json['id'] as String?) ?? '', json);
+  }
+
+  /// Construye el modelo a partir de un mapa (id separado del resto).
   factory DeviceModel.fromMap(String id, Map<String, dynamic> map) {
     return DeviceModel(
       id: id,

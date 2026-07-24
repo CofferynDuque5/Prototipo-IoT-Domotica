@@ -16,10 +16,9 @@ dependencies:
   google_fonts: ^6.2.1
   flutter_animate: ^4.5.0
 
-  # Firebase
-  firebase_core: ^2.31.0
-  firebase_auth: ^4.19.5
-  firebase_database: ^10.4.9
+  # Red: API REST + WebSocket (backend propio con PostgreSQL)
+  http: ^1.2.2
+  web_socket_channel: ^3.0.1
 
   # Estado / Inyección
   provider: ^6.1.2

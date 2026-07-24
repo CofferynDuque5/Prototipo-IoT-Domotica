@@ -1,94 +1,70 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import '../models/user_model.dart';
+import 'api_client.dart';
 
-/// Servicio de bajo nivel sobre Firebase Authentication.
-///
-/// Aísla el SDK de autenticación del resto de la aplicación. Traduce las
-/// excepciones [FirebaseAuthException] a mensajes en español mediante
-/// [AuthException] para que la capa de presentación no maneje códigos crudos.
-class AuthService {
-  AuthService(this._auth);
-
-  final FirebaseAuth _auth;
-
-  /// Usuario actualmente autenticado (o `null`).
-  User? get currentUser => _auth.currentUser;
-
-  /// Flujo de cambios de sesión (login / logout).
-  Stream<User?> authStateChanges() => _auth.authStateChanges();
-
-  Future<User> signIn({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      final UserCredential cred = await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-      return cred.user!;
-    } on FirebaseAuthException catch (e) {
-      throw AuthException(_mapError(e.code));
-    }
-  }
-
-  Future<User> register({
-    required String email,
-    required String password,
-    required String nombre,
-  }) async {
-    try {
-      final UserCredential cred = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-      await cred.user!.updateDisplayName(nombre.trim());
-      return cred.user!;
-    } on FirebaseAuthException catch (e) {
-      throw AuthException(_mapError(e.code));
-    }
-  }
-
-  Future<void> sendPasswordReset(String email) async {
-    try {
-      await _auth.sendPasswordResetEmail(email: email.trim());
-    } on FirebaseAuthException catch (e) {
-      throw AuthException(_mapError(e.code));
-    }
-  }
-
-  Future<void> signOut() => _auth.signOut();
-
-  /// Traduce los códigos de error de Firebase a mensajes legibles.
-  String _mapError(String code) {
-    switch (code) {
-      case 'invalid-email':
-        return 'El correo electrónico no es válido.';
-      case 'user-disabled':
-        return 'Esta cuenta ha sido deshabilitada.';
-      case 'user-not-found':
-        return 'No existe una cuenta con este correo.';
-      case 'wrong-password':
-      case 'invalid-credential':
-        return 'Correo o contraseña incorrectos.';
-      case 'email-already-in-use':
-        return 'Ya existe una cuenta con este correo.';
-      case 'weak-password':
-        return 'La contraseña es demasiado débil.';
-      case 'network-request-failed':
-        return 'Sin conexión a internet. Verifica tu red.';
-      case 'too-many-requests':
-        return 'Demasiados intentos. Inténtalo más tarde.';
-      default:
-        return 'Ocurrió un error de autenticación. ($code)';
-    }
-  }
+/// Resultado de una operación de autenticación: token + perfil.
+class AuthResult {
+  final String token;
+  final UserModel user;
+  const AuthResult({required this.token, required this.user});
 }
 
-/// Excepción de dominio con un mensaje ya traducido para el usuario.
-class AuthException implements Exception {
-  final String message;
-  const AuthException(this.message);
+/// Servicio de autenticación sobre la API REST del backend.
+///
+/// Traduce las respuestas JSON a modelos de dominio. Los errores llegan como
+/// [ApiException] (ya con mensaje legible) desde [ApiClient].
+class AuthService {
+  AuthService(this._api);
 
-  @override
-  String toString() => message;
+  final ApiClient _api;
+
+  Future<AuthResult> login({
+    required String email,
+    required String password,
+  }) async {
+    final data = await _api.post(
+      '/api/auth/login',
+      {'email': email.trim(), 'password': password},
+      auth: false,
+    );
+    return _toResult(data);
+  }
+
+  Future<AuthResult> register({
+    required String nombre,
+    required String email,
+    required String password,
+  }) async {
+    final data = await _api.post(
+      '/api/auth/register',
+      {'nombre': nombre.trim(), 'email': email.trim(), 'password': password},
+      auth: false,
+    );
+    return _toResult(data);
+  }
+
+  Future<UserModel> me() async {
+    final data = await _api.get('/api/auth/me');
+    return UserModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<UserModel> updateProfile(String nombre) async {
+    final data = await _api.patch('/api/auth/me', {'nombre': nombre.trim()});
+    return UserModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> forgotPassword(String email) async {
+    await _api.post(
+      '/api/auth/forgot-password',
+      {'email': email.trim()},
+      auth: false,
+    );
+  }
+
+  AuthResult _toResult(dynamic data) {
+    final map = data as Map<String, dynamic>;
+    return AuthResult(
+      token: map['token'] as String,
+      user: UserModel.fromJson(map['user'] as Map<String, dynamic>),
+    );
+  }
 }

@@ -136,12 +136,13 @@ class _SuccessMessage extends StatelessWidget {
             size: 64, color: Color(0xFF22C55E)),
         const SizedBox(height: 16),
         Text(
-          'Revisa tu bandeja',
+          'Solicitud enviada',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 8),
         Text(
-          'Hemos enviado un enlace de recuperación a $email.',
+          'Si existe una cuenta asociada a $email, recibirás instrucciones '
+          'para restablecer tu contraseña.',
           style: Theme.of(context).textTheme.bodyMedium,
           textAlign: TextAlign.center,
         ),

@@ -37,6 +37,11 @@ class UserModel {
     );
   }
 
+  /// Construye el modelo desde el JSON de la API (incluye el campo `uid`).
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel.fromMap((json['uid'] as String?) ?? '', json);
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'nombre': nombre,

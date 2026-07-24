@@ -33,6 +33,11 @@ void relayWrite(int gpio, bool encendido);
 // Registra o actualiza el mapeo de un dispositivo (id -> gpio) y su estado.
 void relayRegisterDevice(const String &id, int gpio, bool estado);
 
+// Registra/actualiza el dispositivo y devuelve `true` si el estado cambió
+// respecto al valor conocido (o si es nuevo). Útil para saber cuándo hay que
+// accionar el relé y confirmar el cambio al backend.
+bool relayUpsert(const String &id, int gpio, bool estado);
+
 // Aplica un estado a un dispositivo identificado por su id. Devuelve el GPIO
 // afectado, o -1 si el id no está registrado.
 int relaySetById(const String &id, bool encendido);

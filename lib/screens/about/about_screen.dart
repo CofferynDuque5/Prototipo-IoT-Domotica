@@ -18,8 +18,9 @@ class AboutScreen extends StatelessWidget {
 
   static const List<(IconData, String, String)> _stack = [
     (Icons.flutter_dash, 'Flutter', 'App multiplataforma (Dart)'),
-    (Icons.cloud_rounded, 'Firebase RTDB', 'Base de datos en tiempo real'),
-    (Icons.lock_rounded, 'Firebase Auth', 'Autenticación de usuarios'),
+    (Icons.dns_rounded, 'Node.js + Express', 'Backend API REST propio'),
+    (Icons.storage_rounded, 'PostgreSQL', 'Base de datos relacional'),
+    (Icons.lock_rounded, 'JWT + bcrypt', 'Autenticación de usuarios'),
     (Icons.developer_board_rounded, 'ESP8266', 'Firmware en C++ (Arduino)'),
     (Icons.hub_rounded, 'WebSockets', 'Sincronización de baja latencia'),
   ];
@@ -124,9 +125,9 @@ class AboutScreen extends StatelessWidget {
                     Text(
                       'Ecosistema IoT que permite el control remoto de cargas '
                       'eléctricas en tiempo real, integrando hardware '
-                      '(NodeMCU ESP8266), backend en la nube (Firebase '
-                      'Realtime Database) y una aplicación móvil desarrollada '
-                      'en Flutter con Material Design 3.',
+                      '(NodeMCU ESP8266), un backend propio (Node.js + '
+                      'PostgreSQL) con API REST y WebSockets, y una aplicación '
+                      'móvil desarrollada en Flutter con Material Design 3.',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],

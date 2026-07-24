@@ -12,10 +12,18 @@ import '../repositories/esp_repository.dart';
 class EspController extends ChangeNotifier {
   EspController({required EspRepository espRepository}) : _repo = espRepository {
     _subscribe();
+    // Reevalúa periódicamente el estado online/offline: si deja de llegar
+    // telemetría, el heartbeat "caduca" y la UI debe reflejar la desconexión
+    // aunque no haya un nuevo mensaje del servidor.
+    _staleTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _reevaluate(),
+    );
   }
 
   final EspRepository _repo;
   StreamSubscription<EspStatusModel>? _subscription;
+  Timer? _staleTimer;
 
   EspStatusModel _status = EspStatusModel.unknown();
   bool _loading = true;
@@ -50,6 +58,17 @@ class EspController extends ChangeNotifier {
     _pendingTransition = null;
   }
 
+  /// Recalcula la conectividad a partir de la antigüedad del último heartbeat
+  /// y detecta la transición a "offline" si el ESP dejó de reportar.
+  void _reevaluate() {
+    final bool nowOnline = _status.isConnected;
+    if (_previousOnline != null && _previousOnline != nowOnline) {
+      _pendingTransition = nowOnline;
+    }
+    _previousOnline = nowOnline;
+    notifyListeners();
+  }
+
   Future<void> refresh() async {
     _status = await _repo.fetchStatus();
     notifyListeners();
@@ -58,6 +77,7 @@ class EspController extends ChangeNotifier {
   @override
   void dispose() {
     _subscription?.cancel();
+    _staleTimer?.cancel();
     super.dispose();
   }
 }

@@ -43,6 +43,31 @@ void relayRegisterDevice(const String &id, int gpio, bool estado) {
   }
 }
 
+bool relayUpsert(const String &id, int gpio, bool estado) {
+  // ¿Ya existe?
+  for (int i = 0; i < deviceCount; i++) {
+    if (devices[i].id == id) {
+      const bool changed = (devices[i].estado != estado);
+      devices[i].gpio = gpio;
+      if (changed) {
+        devices[i].estado = estado;
+        relayWrite(gpio, estado);
+      }
+      return changed;
+    }
+  }
+  // Nuevo dispositivo.
+  if (deviceCount < MAX_DEVICES) {
+    devices[deviceCount].id = id;
+    devices[deviceCount].gpio = gpio;
+    devices[deviceCount].estado = estado;
+    pinMode(gpio, OUTPUT);
+    relayWrite(gpio, estado);
+    deviceCount++;
+  }
+  return true;  // nuevo registro => se considera "cambio"
+}
+
 int relaySetById(const String &id, bool encendido) {
   for (int i = 0; i < deviceCount; i++) {
     if (devices[i].id == id) {
