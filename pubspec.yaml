@@ -1,0 +1,46 @@
+name: prototipo_iot_domotica
+description: "Sistema IoT de Domótica (Smart Home) construido con Flutter, Firebase Realtime Database y ESP8266."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+
+  # Firebase
+  firebase_core: ^2.31.0
+  firebase_auth: ^4.19.5
+  firebase_database: ^10.4.9
+
+  # Estado / Inyección
+  provider: ^6.1.2
+
+  # Navegación
+  go_router: ^14.1.4
+
+  # Persistencia local
+  shared_preferences: ^2.2.3
+
+  # Utilidades
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  # Todos los iconos provienen de Material Icons; no se requieren assets locales.
+  # Si añades imágenes, colócalas en assets/images/ y descomenta:
+  # assets:
+  #   - assets/images/

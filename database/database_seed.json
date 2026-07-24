@@ -1,0 +1,50 @@
+{
+  "devices": {
+    "dev_luz_sala": {
+      "nombre": "Luz Sala",
+      "tipo": "luz",
+      "estado": false,
+      "gpio": 5,
+      "habitacion": "Sala",
+      "online": false,
+      "ultimaActualizacion": 0
+    },
+    "dev_luz_cocina": {
+      "nombre": "Luz Cocina",
+      "tipo": "luz",
+      "estado": false,
+      "gpio": 4,
+      "habitacion": "Cocina",
+      "online": false,
+      "ultimaActualizacion": 0
+    },
+    "dev_ventilador": {
+      "nombre": "Ventilador",
+      "tipo": "ventilador",
+      "estado": false,
+      "gpio": 14,
+      "habitacion": "Dormitorio",
+      "online": false,
+      "ultimaActualizacion": 0
+    },
+    "dev_tomacorriente": {
+      "nombre": "Tomacorriente",
+      "tipo": "tomacorriente",
+      "estado": false,
+      "gpio": 12,
+      "habitacion": "Sala",
+      "online": false,
+      "ultimaActualizacion": 0
+    }
+  },
+  "esp": {
+    "online": false,
+    "ip": "0.0.0.0",
+    "ssid": "-",
+    "rssi": -100,
+    "uptime": 0,
+    "firmware": "1.0.0",
+    "freeHeap": 0,
+    "lastSeen": 0
+  }
+}
