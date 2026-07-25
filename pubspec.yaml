@@ -1,5 +1,5 @@
 name: prototipo_iot_domotica
-description: "Sistema IoT de Domótica (Smart Home) construido con Flutter, Firebase Realtime Database y ESP8266."
+description: "Sistema IoT de Domótica (Smart Home) construido con Flutter, backend Node.js + PostgreSQL y ESP8266."
 publish_to: "none"
 version: 1.0.0+1
 
