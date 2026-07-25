@@ -90,6 +90,17 @@ npm start                     # arranca la API en el puerto configurado
 |---|---|---|---|
 | GET | `/` | JWT | Historial de eventos (máx. 100). |
 
+### Estado del relé (`/api/estado`) — puente hacia Proteus
+
+Endpoints simplificados que operan sobre un único dispositivo relé
+(`RELAY_DEVICE_ID`, por defecto `dev_luz_sala`), consumidos por el puente serial
+(`proteus-bridge/`). Ver [`proteus-bridge/README.md`](../proteus-bridge/README.md).
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| GET | `/` | `x-device-key` | Estado actual del relé `{estado, deviceId, ...}`. |
+| POST | `/` | `x-device-key` | Actualiza el relé `{estado: bool}` (registra evento y difunde). |
+
 ## 🔌 WebSocket (tiempo real)
 
 Conéctate a `ws://host:3000/ws?token=<JWT>`.

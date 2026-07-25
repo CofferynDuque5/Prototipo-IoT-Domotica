@@ -63,6 +63,7 @@ Prototipo-IoT-Domotica/
 │   └── docker-compose.yml
 ├── firmware/
 │   └── prototipo_iot_domotica/  → Sketch Arduino para ESP8266 (REST)
+├── proteus-bridge/              → Puente serial API↔Proteus + sketch Arduino (COMPIM)
 ├── docs/                        → Guías de backend y Arduino
 ├── pubspec.yaml
 └── README.md
@@ -147,14 +148,27 @@ Guía completa en [`docs/ARDUINO_SETUP.md`](docs/ARDUINO_SETUP.md). Resumen:
 4. El ESP8266 (polling) detecta el cambio, activa el relé y confirma.
 5. Todas las apps conectadas ven el cambio y el nuevo evento al instante.
 
+## 🧩 Simulación en Proteus (COMPIM)
+
+Además del ESP8266 físico, el sistema puede accionar un **relé simulado en
+Proteus** mediante un Arduino conectado a un `COMPIM` por puerto serial virtual.
+El puente `proteus-bridge/` consulta `GET /api/estado` y envía `'1'`/`'0'` por el
+puerto COM; el Arduino lee el Serial y controla el transistor (PIN 2) que
+conmuta el relé y la lámpara de 120 V. Guía completa e instrucciones de VSPD +
+COMPIM en [`proteus-bridge/README.md`](proteus-bridge/README.md).
+
+```
+Flutter → API (/api/estado) → PostgreSQL → bridge.js → COM2⇄COM1 → COMPIM → Arduino → relé → lámpara
+```
+
 ---
 
 ## 🔎 Estado de verificación
 
-- ✅ **Pruebas automatizadas del backend con Jest + Supertest** (27 tests, 5
-  suites): auth, dispositivos, eventos, telemetría del ESP y WebSocket en tiempo
-  real. Usan `pg-mem` (PostgreSQL en memoria), así que corren en cualquier
-  máquina: `cd backend && npm test`. Se ejecutan en CI con GitHub Actions.
+- ✅ **Pruebas automatizadas del backend con Jest + Supertest** (32 tests, 6
+  suites): auth, dispositivos, eventos, telemetría del ESP, `/estado` y WebSocket
+  en tiempo real. Usan `pg-mem` (PostgreSQL en memoria), así que corren en
+  cualquier máquina: `cd backend && npm test`. Se ejecutan en CI con GitHub Actions.
 - ✅ **Backend probado también contra PostgreSQL real** de extremo a extremo.
 - La app Flutter consume estos mismos contratos JSON (verificados).
 

@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.js';
 import deviceRoutes from './routes/devices.js';
 import eventRoutes from './routes/events.js';
 import espRoutes from './routes/esp.js';
+import estadoRoutes from './routes/estado.js';
 
 export function createApp() {
   const app = express();
@@ -29,6 +30,7 @@ export function createApp() {
   app.use('/api/devices', deviceRoutes);
   app.use('/api/events', eventRoutes);
   app.use('/api/esp', espRoutes);
+  app.use('/api/estado', estadoRoutes);
 
   // 404.
   app.use((req, res) => {

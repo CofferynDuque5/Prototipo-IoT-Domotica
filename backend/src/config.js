@@ -15,6 +15,9 @@ export const config = {
     process.env.ESP_OFFLINE_THRESHOLD_SECONDS || '30',
     10,
   ),
+  // Dispositivo (relé) que exponen los endpoints simplificados /api/estado,
+  // usados por el puente serial hacia Proteus.
+  relayDeviceId: process.env.RELAY_DEVICE_ID || 'dev_luz_sala',
 };
 
 // Advertencias en caso de usar valores por defecto inseguros en producción.
