@@ -178,6 +178,12 @@ Flutter → API (/api/estado) → PostgreSQL → bridge.js → COM2⇄COM1 → C
 
 ---
 
+## 🎓 Material para la defensa
+
+- **Presentación:** [`docs/defensa.pptx`](docs/defensa.pptx) — deck de 12 diapositivas (16:9).
+- **Guión de defensa:** [`docs/DEFENSA.md`](docs/DEFENSA.md) — tiempos por diapositiva, qué decir, checklist de la demo en vivo (con plan B) y preguntas frecuentes del jurado con respuestas.
+- **Diagrama:** [`docs/arquitectura.svg`](docs/arquitectura.svg) · [`docs/arquitectura.png`](docs/arquitectura.png).
+
 ## 📄 Licencia
 
 Proyecto académico con fines educativos. Uso libre para aprendizaje.
