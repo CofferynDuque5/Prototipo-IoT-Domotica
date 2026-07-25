@@ -28,6 +28,10 @@ microcontrolador **NodeMCU ESP8266** como nodo físico, un **backend propio**
 
 ## 🏗️ Arquitectura
 
+![Arquitectura del sistema](docs/arquitectura.png)
+
+> Diagrama vectorial en [`docs/arquitectura.svg`](docs/arquitectura.svg) (insertable en PowerPoint) y en PNG de alta resolución en [`docs/arquitectura.png`](docs/arquitectura.png).
+
 ```
 ┌──────────────────┐   REST + WebSocket   ┌──────────────────────┐   SQL   ┌──────────────┐
 │   App Flutter     │ ◀──────────────────▶ │  Backend Node.js      │ ◀─────▶ │  PostgreSQL   │
