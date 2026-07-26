@@ -15,7 +15,7 @@ class ApiConfig {
   ApiConfig._();
 
   static const String host =
-      String.fromEnvironment('API_HOST', defaultValue: '10.0.2.2');
+      String.fromEnvironment('API_HOST', defaultValue: '127.0.0.1');
 
   static const int port =
       int.fromEnvironment('API_PORT', defaultValue: 3000);
