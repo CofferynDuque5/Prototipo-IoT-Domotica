@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" font-family="'Segoe UI', Roboto, Arial, sans-serif">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="8.5" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#334155"/>
+    </marker>
+    <marker id="arrowStart" markerWidth="12" markerHeight="12" refX="0.5" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M9,0 L0,4 L9,8 Z" fill="#334155"/>
+    </marker>
+  </defs>
+
+  <!-- Fondo -->
+  <rect x="0" y="0" width="1600" height="900" fill="#FFFFFF"/>
+
+  <!-- Título -->
+  <text x="800" y="66" text-anchor="middle" font-size="38" font-weight="700" fill="#0F172A">Arquitectura del Sistema IoT de Domótica</text>
+  <text x="800" y="102" text-anchor="middle" font-size="17" fill="#64748B">Flutter · Node.js / Express · PostgreSQL · WebSocket · ESP8266 · Proteus (COMPIM)</text>
+
+  <!-- Rótulos de capa -->
+  <text x="190" y="322" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="2" fill="#94A3B8">PRESENTACIÓN</text>
+  <text x="595" y="288" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="2" fill="#94A3B8">APLICACIÓN</text>
+  <text x="1005" y="212" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="2" fill="#94A3B8">CONTROLADORES</text>
+  <text x="1490" y="272" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="2" fill="#94A3B8">ACTUACIÓN</text>
+
+  <!-- ============ Conexiones ============ -->
+  <g stroke="#334155" stroke-width="2.5" fill="none">
+    <!-- Flutter <-> Backend : REST -->
+    <line x1="312" y1="398" x2="426" y2="398" marker-end="url(#arrow)"/>
+    <!-- Flutter <-> Backend : WebSocket (push del servidor) -->
+    <line x1="426" y1="468" x2="312" y2="468" marker-end="url(#arrow)"/>
+    <!-- Backend -> PostgreSQL -->
+    <line x1="595" y1="532" x2="595" y2="598" marker-end="url(#arrow)" marker-start="url(#arrowStart)"/>
+    <!-- Backend -> ESP8266 -->
+    <line x1="762" y1="372" x2="876" y2="312" marker-end="url(#arrow)"/>
+    <!-- Backend -> Puente -->
+    <line x1="762" y1="452" x2="866" y2="505" marker-end="url(#arrow)"/>
+    <!-- Puente -> COMPIM -->
+    <line x1="1024" y1="525" x2="1040" y2="525" marker-end="url(#arrow)"/>
+    <!-- COMPIM -> Arduino -->
+    <line x1="1194" y1="525" x2="1210" y2="525" marker-end="url(#arrow)"/>
+    <!-- ESP8266 -> Actuación -->
+    <line x1="1132" y1="312" x2="1406" y2="380" marker-end="url(#arrow)"/>
+    <!-- Arduino -> Actuación -->
+    <line x1="1359" y1="510" x2="1406" y2="470" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- Etiquetas de conexión -->
+  <g font-size="13" fill="#475569" text-anchor="middle">
+    <text x="369" y="390">REST</text>
+    <text x="369" y="486">WebSocket · vivo</text>
+    <text x="640" y="572" text-anchor="start">SQL (pg)</text>
+    <text x="820" y="352">REST + heartbeat</text>
+    <text x="812" y="466">/api/estado · 1&#8202;s</text>
+    <text x="1033" y="452">Serial '1'/'0'</text>
+    <text x="1203" y="452">UART</text>
+    <text x="1265" y="332">GPIO</text>
+  </g>
+
+  <!-- ============ Cajas ============ -->
+
+  <!-- App Flutter -->
+  <g filter="url(#shadow)">
+    <rect x="70" y="342" width="240" height="150" rx="16" fill="#FFFFFF" stroke="#5B5BF5" stroke-width="2.5"/>
+  </g>
+  <text x="190" y="388" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">App Flutter</text>
+  <text x="190" y="418" text-anchor="middle" font-size="14" fill="#64748B">Material Design 3</text>
+  <text x="190" y="440" text-anchor="middle" font-size="14" fill="#64748B">Provider · GoRouter</text>
+  <text x="190" y="462" text-anchor="middle" font-size="14" fill="#64748B">http · web_socket_channel</text>
+
+  <!-- Backend -->
+  <g filter="url(#shadow)">
+    <rect x="430" y="320" width="330" height="212" rx="16" fill="#FFFFFF" stroke="#3C873A" stroke-width="2.5"/>
+  </g>
+  <text x="595" y="358" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">Backend</text>
+  <text x="595" y="382" text-anchor="middle" font-size="14" fill="#64748B">Node.js + Express</text>
+  <g font-size="14" font-weight="600" text-anchor="middle">
+    <rect x="455" y="402" width="132" height="38" rx="10" fill="#E9F5EA"/>
+    <text x="521" y="426" fill="#2E7D32">API REST</text>
+    <rect x="600" y="402" width="140" height="38" rx="10" fill="#E9F5EA"/>
+    <text x="670" y="426" fill="#2E7D32">WebSocket</text>
+    <rect x="455" y="450" width="285" height="38" rx="10" fill="#E9F5EA"/>
+    <text x="597" y="474" fill="#2E7D32">Auth JWT + bcrypt</text>
+  </g>
+  <text x="595" y="512" text-anchor="middle" font-size="12.5" fill="#94A3B8">/api/devices · /api/estado · /api/esp · /api/events</text>
+
+  <!-- PostgreSQL (cilindro) -->
+  <g filter="url(#shadow)">
+    <path d="M485,608 V740 A110,18 0 0 0 705,740 V608" fill="#FFFFFF" stroke="#336791" stroke-width="2.5"/>
+    <ellipse cx="595" cy="608" rx="110" ry="18" fill="#FFFFFF" stroke="#336791" stroke-width="2.5"/>
+  </g>
+  <text x="595" y="668" text-anchor="middle" font-size="20" font-weight="700" fill="#336791">PostgreSQL</text>
+  <text x="595" y="694" text-anchor="middle" font-size="13" fill="#64748B">devices · events</text>
+  <text x="595" y="714" text-anchor="middle" font-size="13" fill="#64748B">users · esp_status</text>
+
+  <!-- ESP8266 -->
+  <g filter="url(#shadow)">
+    <rect x="880" y="252" width="252" height="120" rx="16" fill="#FFFFFF" stroke="#E8710A" stroke-width="2.5"/>
+  </g>
+  <text x="1006" y="292" text-anchor="middle" font-size="19" font-weight="700" fill="#0F172A">ESP8266 (NodeMCU)</text>
+  <text x="1006" y="318" text-anchor="middle" font-size="14" fill="#64748B">Firmware C++ · Wi-Fi</text>
+  <text x="1006" y="340" text-anchor="middle" font-size="13" fill="#94A3B8">ruta hardware real</text>
+
+  <!-- Grupo Proteus (contenedor punteado) -->
+  <rect x="852" y="420" width="524" height="200" rx="18" fill="#00979D" fill-opacity="0.05" stroke="#00979D" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="872" y="444" font-size="13" font-weight="700" letter-spacing="1.5" fill="#00838A">SIMULACIÓN EN PROTEUS</text>
+
+  <!-- Puente serial -->
+  <g filter="url(#shadow)">
+    <rect x="872" y="460" width="152" height="130" rx="14" fill="#FFFFFF" stroke="#7C3AED" stroke-width="2.5"/>
+  </g>
+  <text x="948" y="502" text-anchor="middle" font-size="16" font-weight="700" fill="#0F172A">Puente serial</text>
+  <text x="948" y="526" text-anchor="middle" font-size="13" fill="#64748B">bridge.js</text>
+  <text x="948" y="548" text-anchor="middle" font-size="13" fill="#64748B">serialport</text>
+  <text x="948" y="572" text-anchor="middle" font-size="12" fill="#94A3B8">Node.js</text>
+
+  <!-- COMPIM -->
+  <g filter="url(#shadow)">
+    <rect x="1042" y="460" width="152" height="130" rx="14" fill="#FFFFFF" stroke="#0EA5E9" stroke-width="2.5"/>
+  </g>
+  <text x="1118" y="502" text-anchor="middle" font-size="16" font-weight="700" fill="#0F172A">COMPIM</text>
+  <text x="1118" y="526" text-anchor="middle" font-size="13" fill="#64748B">VSPD</text>
+  <text x="1118" y="548" text-anchor="middle" font-size="13" fill="#64748B">COM1 ⇄ COM2</text>
+  <text x="1118" y="572" text-anchor="middle" font-size="12" fill="#94A3B8">9600 baud</text>
+
+  <!-- Arduino -->
+  <g filter="url(#shadow)">
+    <rect x="1212" y="460" width="148" height="130" rx="14" fill="#FFFFFF" stroke="#00979D" stroke-width="2.5"/>
+  </g>
+  <text x="1286" y="502" text-anchor="middle" font-size="16" font-weight="700" fill="#0F172A">Arduino</text>
+  <text x="1286" y="526" text-anchor="middle" font-size="13" fill="#64748B">lee Serial</text>
+  <text x="1286" y="548" text-anchor="middle" font-size="13" fill="#64748B">Pin 2 → base Q1</text>
+  <text x="1286" y="572" text-anchor="middle" font-size="12" fill="#94A3B8">C++</text>
+
+  <!-- Actuación física -->
+  <g filter="url(#shadow)">
+    <rect x="1410" y="300" width="162" height="292" rx="16" fill="#FFFFFF" stroke="#F59E0B" stroke-width="2.5"/>
+  </g>
+  <text x="1491" y="338" text-anchor="middle" font-size="17" font-weight="700" fill="#0F172A">Actuación física</text>
+  <g text-anchor="middle" font-size="14" font-weight="600">
+    <rect x="1426" y="360" width="130" height="52" rx="10" fill="#FEF3C7"/>
+    <text x="1491" y="384" fill="#92400E">Transistor</text>
+    <text x="1491" y="402" fill="#92400E" font-size="12.5">2N2222</text>
+    <rect x="1426" y="424" width="130" height="52" rx="10" fill="#FEF3C7"/>
+    <text x="1491" y="448" fill="#92400E">Relé RL1</text>
+    <text x="1491" y="466" fill="#92400E" font-size="12.5">bobina 5&#8239;V + diodo</text>
+    <rect x="1426" y="488" width="130" height="60" rx="10" fill="#FEF3C7"/>
+    <text x="1491" y="513" fill="#92400E">Lámpara</text>
+    <text x="1491" y="532" fill="#92400E" font-size="12.5">120&#8239;V AC · 60&#8201;W</text>
+  </g>
+
+  <!-- Pie -->
+  <text x="800" y="858" text-anchor="middle" font-size="15" fill="#64748B">La app y la simulación de Proteus comparten el mismo estado del relé en PostgreSQL — dos rutas de hardware, un solo resultado físico.</text>
+</svg>

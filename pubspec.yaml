@@ -1,0 +1,45 @@
+name: prototipo_iot_domotica
+description: "Sistema IoT de Domótica (Smart Home) construido con Flutter, backend Node.js + PostgreSQL y ESP8266."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+
+  # Red: API REST + WebSocket (backend propio con PostgreSQL)
+  http: ^1.2.2
+  web_socket_channel: ^3.0.1
+
+  # Estado / Inyección
+  provider: ^6.1.2
+
+  # Navegación
+  go_router: ^14.1.4
+
+  # Persistencia local
+  shared_preferences: ^2.2.3
+
+  # Utilidades
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  # Todos los iconos provienen de Material Icons; no se requieren assets locales.
+  # Si añades imágenes, colócalas en assets/images/ y descomenta:
+  # assets:
+  #   - assets/images/

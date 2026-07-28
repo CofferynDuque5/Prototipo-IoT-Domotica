@@ -1,0 +1,16 @@
+{
+  "name": "proteus-serial-bridge",
+  "version": "1.0.0",
+  "description": "Puente entre la API REST y el puerto serial virtual (COMPIM en Proteus).",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "serialport": "^12.0.0"
+  }
+}

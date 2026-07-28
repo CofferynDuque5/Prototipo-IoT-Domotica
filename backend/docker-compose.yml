@@ -1,0 +1,48 @@
+# ===========================================================================
+# Orquestación local: PostgreSQL + backend Node.js.
+# Uso:
+#   1) cp .env.example .env   (ajusta secretos)
+#   2) docker compose up --build
+# El esquema y el seed se aplican automáticamente al crear la base de datos
+# (scripts montados en /docker-entrypoint-initdb.d).
+# ===========================================================================
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: iot_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iot_user
+      POSTGRES_PASSWORD: iot_password
+      POSTGRES_DB: iot_domotica
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iot_user -d iot_domotica"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: iot_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://iot_user:iot_password@db:5432/iot_domotica
+      JWT_SECRET: ${JWT_SECRET:-cambia_este_secreto}
+      JWT_EXPIRES_IN: 7d
+      DEVICE_API_KEY: ${DEVICE_API_KEY:-cambia_esta_clave_del_dispositivo}
+      ESP_OFFLINE_THRESHOLD_SECONDS: 30
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
